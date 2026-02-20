@@ -1,0 +1,12 @@
+# Ignore everything by default
+*
+
+# Allow traversing directories so unignored files are reachable
+!*/
+
+# Only allow Rust source and Cargo/TOML files
+!*.rs
+!*.toml
+
+# Keep the gitignore itself tracked
+!.gitignore
