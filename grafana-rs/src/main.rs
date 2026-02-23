@@ -33,6 +33,11 @@ enum Commands {
         #[arg(long)]
         ds_url: String,
     },
+    GetDatasource {
+        /// Datasource name to look up
+        #[arg(short, long)]
+        name: String,
+    },
 
 }
 
@@ -157,6 +162,20 @@ async fn main(){
                     println!("  message  : {}", resp.message);
                 }
                 Err(e) => eprintln!("Failed to create datasource: {e}"),
+            }
+        }
+        Commands::GetDatasource { name } => {
+            match client.get_datasource_by_name(&name).await {
+                Ok(ds) => {
+                    println!("[datasource]");
+                    println!("  id       : {}", ds.id);
+                    println!("  uid      : {}", ds.uid);
+                    println!("  name     : {}", ds.name);
+                    println!("  type     : {}", ds.kind);
+                    println!("  url      : {}", ds.url);
+                    println!("  default  : {}", ds.is_default);
+                }
+                Err(e) => eprintln!("Failed to get datasource: {e}"),
             }
         }
 

@@ -74,7 +74,8 @@ pub struct Datasource {
     pub name: String,
     #[serde(rename = "type")]
     pub kind: String,
-    pub type_name: String,
+    #[serde(default)]
+    pub type_name: Option<String>,
     pub access: String,
     pub url: String,
     pub user: String,
@@ -153,6 +154,11 @@ impl GrafanaClient {
         request: &CreateDatasourceRequest,
     ) -> Result<CreateDatasourceResponse, GrafanaError> {
         self.post("/api/datasources", request).await
+    }
+
+    //adding end point for getting data source name
+    pub async fn get_datasource_by_name(&self, name: &str) -> Result<Datasource, GrafanaError> {
+        self.get(&format!("/api/datasources/name/{name}")).await
     }
 
     // -----------------------------------------------------------------------
