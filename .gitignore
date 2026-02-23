@@ -1,5 +1,6 @@
 # Ignore everything by default
 *
+*/target/*
 
 # Allow traversing directories so unignored files are reachable
 !*/
@@ -10,3 +11,6 @@
 
 # Keep the gitignore itself tracked
 !.gitignore
+
+# Ignore build artifacts for grafana project
+grafana-rs/target/

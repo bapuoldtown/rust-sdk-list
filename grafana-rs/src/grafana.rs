@@ -1,5 +1,5 @@
 use reqwest::Client;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 // ---------------------------------------------------------------------------
@@ -64,6 +64,49 @@ pub struct OrgAddress {
     pub country: String,
 }
 
+/// A configured datasource. Response items from `GET /api/datasources`.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Datasource {
+    pub id: u64,
+    pub uid: String,
+    pub org_id: u64,
+    pub name: String,
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub type_name: String,
+    pub access: String,
+    pub url: String,
+    pub user: String,
+    pub database: String,
+    pub basic_auth: bool,
+    pub is_default: bool,
+    pub json_data: serde_json::Value,
+    pub read_only: bool,
+}
+/// Payload for creating a datasource via `POST /api/datasources`.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateDatasourceRequest {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub access: String,
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub database: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user: Option<String>,
+    pub is_default: bool,
+}
+
+/// Response from `POST /api/datasources`.
+#[derive(Debug, Deserialize)]
+pub struct CreateDatasourceResponse {
+    pub id: u64,
+    pub message: String,
+    pub name: String,
+}
 // ---------------------------------------------------------------------------
 // Client
 // ---------------------------------------------------------------------------
@@ -97,6 +140,20 @@ impl GrafanaClient {
     pub async fn get_current_org(&self) -> Result<CurrentOrg, GrafanaError> {
         self.get("/api/org").await
     }
+    /// List all configured datasources.
+    /// GET /api/datasources
+    pub async fn list_datasources(&self) -> Result<Vec<Datasource>, GrafanaError> {
+        self.get("/api/datasources").await
+    }
+
+    /// Create a new datasource.
+    /// POST /api/datasources
+    pub async fn create_datasource(
+        &self,
+        request: &CreateDatasourceRequest,
+    ) -> Result<CreateDatasourceResponse, GrafanaError> {
+        self.post("/api/datasources", request).await
+    }
 
     // -----------------------------------------------------------------------
     // Internal
@@ -113,6 +170,35 @@ impl GrafanaClient {
             .http
             .get(&url)
             .bearer_auth(&self.api_key)
+            .send()
+            .await?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(GrafanaError::Api {
+                status: status.as_u16(),
+                body,
+            });
+        }
+
+        let body = resp.json::<T>().await?;
+        Ok(body)
+    }
+
+    /// Authenticated POST request with JSON body → deserialize JSON response.
+    async fn post<T: serde::de::DeserializeOwned, B: serde::Serialize>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> Result<T, GrafanaError> {
+        let url = format!("{}{}", self.base_url, path);
+
+        let resp = self
+            .http
+            .post(&url)
+            .bearer_auth(&self.api_key)
+            .json(body)
             .send()
             .await?;
 

@@ -1,41 +1,164 @@
-#[derive(Debug)]
-pub enum MyEnum{
-    Submitted,
-    InProgress,
-    Completed,
-    Failed,
+mod grafana;
+
+use grafana::{GrafanaClient, CreateDatasourceRequest};
+use clap::{Parser, Subcommand};
+
+#[derive(Parser)]   //This will tell a type to be like a command which is below here that is grafana-rs
+#[command(name = "grafana-rs")] //When we put this name as command because it has been derived above
+#[command(about = "A Rust CLI for the Grafana API")] //This will generate a dicumentation if we give command-name --help
+struct Cli {
+    #[arg(short, long, default_value = "http://localhost:3000")]
+    url: String,
+    #[arg(short, long, env = "GRAFANA_API_KEY")]
+    key: String,
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// List datasources
+    Datasources,
+    //Check if grafana ias alive
+    Health,
+    Org,
+    CreateDatasource {
+        /// Datasource name
+        #[arg(short, long)]
+        name: String,
+        /// Datasource type (e.g. prometheus, postgres, influxdb)
+        #[arg(short = 't', long = "type")]
+        kind: String,
+        /// Datasource URL (e.g. http://localhost:9090)
+        #[arg(long)]
+        ds_url: String,
+    },
 
 }
-//Rust Enums can carr data apart from labels like normal python Enum class will do
-pub enum Message{
-    Quit,
-    Move{x:i32, y:i32},
-    Write(String),
-    Color(u8, u8, u8),
+
+/*
+#[tokio::main]
+async fn main() {
+    // Read from environment — never hardcode secrets
+    let base_url = std::env::var("GRAFANA_URL")
+        .unwrap_or_else(|_| "http://localhost:3000".to_string());
+
+    let api_key = match std::env::var("GRAFANA_API_KEY") {
+        Ok(key) => key,
+        Err(_) => {
+            eprintln!("Error: GRAFANA_API_KEY env var not set");
+            eprintln!("Usage: GRAFANA_API_KEY=your-key cargo run");
+            return;
+        }
+    };
+
+    // Connect
+    let client = GrafanaClient::connect(&base_url, &api_key);
+    println!("Connecting to {base_url}...\n");
+
+    // Health check
+    match client.health().await {
+        Ok(health) => {
+            println!("[health]");
+            println!("  version  : {}", health.version);
+            println!("  database : {}", health.database);
+            println!("  commit   : {}", health.commit);
+        }
+        Err(e) => {
+            eprintln!("Health check failed: {e}");
+            return;
+        }
+    }
+
+    // Current org (proves API key auth works)
+    match client.get_current_org().await {
+        Ok(org) => {
+            println!("\n[current org]");
+            println!("  id       : {}", org.id);
+            println!("  name     : {}", org.name);
+        }
+        Err(e) => {
+            eprintln!("\nAuth failed: {e}");
+            eprintln!("Check your API key!");
+            return;
+        }
+    }
+    match client.list_datasources().await {
+        Ok(datasources) =>{
+            println!("\n[datasources]");
+            for ds in datasources {
+                println!("  - {} ({})", ds.name, ds.kind);
+            }
+        }
+        Err(e) =>{
+            eprintln!("\nFailed to list datasources: {e}");
+        }
+    }
+
+    println!("grafana-rs connected successfully!");
 }
+*/
+#[tokio::main]
+async fn main(){
+    let cli = Cli::parse();
+    let client = GrafanaClient::connect(&cli.url, &cli.key);
+    match cli.command {
+        Commands::Health => {
+            match client.health().await {
+                Ok(health) => {
+                    println!("[health]");
+                    println!("  version  : {}", health.version);
+                    println!("  database : {}", health.database);
+                    println!("  commit   : {}", health.commit);
+                }
+                Err(e) => eprintln!("Health check failed: {e}"),
+            }
+        }
+        Commands::Org => {
+            match client.get_current_org().await {
+                Ok(org) => {
+                    println!("[org]");
+                    println!("  id       : {}", org.id);
+                    println!("  name     : {}", org.name);
+                }
+                Err(e) => eprintln!("Failed to get org: {e}"),
+            }
+        }
+        Commands::Datasources => {
+            match client.list_datasources().await {
+                Ok(datasources) => {
+                    println!("[datasources] ({})", datasources.len());
+                    for ds in &datasources {
+                        println!(
+                            "  - {} | type={} | url={} | default={}",
+                            ds.name, ds.kind, ds.url, ds.is_default
+                        );
+                    }
+                }
+                Err(e) => eprintln!("Failed to list datasources: {e}"),
+            }
+        }
+        Commands::CreateDatasource { name, kind, ds_url } => {
+            let request = CreateDatasourceRequest {
+                name: name.clone(),
+                kind,
+                access: "proxy".to_string(),
+                url: ds_url,
+                database: None,
+                user: None,
+                is_default: false,
+            };
 
-fn main() {
-    println!("Hello, world!");
-    let submitted_value = MyEnum::InProgress;
-    println!(
-        "This is a Rust SDK for the Grafana HTTP API. enum value = {:?}",
-        submitted_value
-    );
-    //match Enu variants 
-    match submitted_value{
-        MyEnum::Submitted => println!("The submitted value is {:?}", submitted_value),
-        MyEnum::InProgress => println!("The value is {:?}", submitted_value),
-        MyEnum::Completed => println!("The value is {:?}", submitted_value),
-        MyEnum::Failed => println!("The value is {:?}", submitted_value),
+            match client.create_datasource(&request).await {
+                Ok(resp) => {
+                    println!("[created]");
+                    println!("  id       : {}", resp.id);
+                    println!("  name     : {}", resp.name);
+                    println!("  message  : {}", resp.message);
+                }
+                Err(e) => eprintln!("Failed to create datasource: {e}"),
+            }
+        }
+
     }
-
-    //let my_state = Message::Color(10, 20, 30);
-    let my_state = Message::Write(String::from("Guru"));
-
-    match my_state{
-        Message::Color(a, b, c) => println!("The pattern matched with tuple struct: {}, {}, {}", a, b, c),
-        _ => println!("The pattern did not match with tuple struct"),
-    }
-
-
 }
