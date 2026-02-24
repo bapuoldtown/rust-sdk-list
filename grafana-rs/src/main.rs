@@ -39,6 +39,12 @@ enum Commands {
         name: String,
     },
 
+    DeleteDatasource {
+        /// Datasource name to delete
+        #[arg(short, long)]
+        name: String,
+    },
+
 }
 
 /*
@@ -176,6 +182,16 @@ async fn main(){
                     println!("  default  : {}", ds.is_default);
                 }
                 Err(e) => eprintln!("Failed to get datasource: {e}"),
+            }
+        }
+        Commands::DeleteDatasource { name } => {
+            match client.delete_datasource(&name).await {
+                Ok(resp) => {
+                    println!("[deleted]");
+                    println!("  name     : {}", name);
+                    println!("  response : {}", resp);
+                }
+                Err(e) => eprintln!("Failed to delete datasource: {e}"),
             }
         }
 

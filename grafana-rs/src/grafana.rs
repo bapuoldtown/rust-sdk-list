@@ -160,6 +160,10 @@ impl GrafanaClient {
     pub async fn get_datasource_by_name(&self, name: &str) -> Result<Datasource, GrafanaError> {
         self.get(&format!("/api/datasources/name/{name}")).await
     }
+    pub async fn delete_datasource(&self, name: &str) -> Result<String, GrafanaError>{
+        self.delete(&format!("/api/datasources/name/{name}")).await
+
+    }
 
     // -----------------------------------------------------------------------
     // Internal
@@ -219,5 +223,22 @@ impl GrafanaClient {
 
         let body = resp.json::<T>().await?;
         Ok(body)
+    }
+
+    async fn delete(&self, path: &str) -> Result<String, GrafanaError>{
+        let url = format!("{}{}", self.base_url, path);
+        let resp = self.http.delete(&url).bearer_auth(&self.api_key).send().await?;
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        if !status.is_success(){
+            return Err(GrafanaError::Api {
+                status: status.as_u16(),
+                body,
+            });
+
+        }
+        Ok(body)
+
+
     }
 }
